@@ -1,6 +1,6 @@
 compute_environment: LOCAL_MACHINE
 deepspeed_config:
- deepspeed_config_file: /home/jiyun/KB_Deepspeed/zero2_config.json
+ deepspeed_config_file: ./zero2_config.json
  zero3_init_flag: true
 distributed_type: DEEPSPEED
 fsdp_config: {}

@@ -18,11 +18,9 @@ import math
 
 from dataset import FinanceDataset
 
-
-# MAX_GPU_BATCH_SIZE = 16
-# EVAL_BATCH_SIZE = 32
-
+# Referenced Huggingface Accelerate Source code 
 # accelerate launch --config_file deepspeed_config_zero2.yaml accel_ds.py
+
 
 def get_args():
     parser = argparse.ArgumentParser(description='')
@@ -60,7 +58,6 @@ def get_args():
 
     parser.add_argument('--pretrained_model', type=str, default='google/mt5-small', choices=['facebook/mbart-large-50', 'google/mt5-small'])
     parser.add_argument('--resume_from_ckpt', type=str, default=None)
-    # parser.add_argument('--args_to_my_script', default='./deepspeed_config_zero2.yaml')
     args = parser.parse_args()
 
     config = {'lr': args.lr, 
@@ -92,16 +89,8 @@ def train(config, args):
     else:
         ckpt_steps = None
 
-    # batch_size = args.batch_size
-
-    # if args.with_tracking:
-    #     run = os.path.split(__file__)[-1].split(".")[0]
-    #     accelerator.init_trackers(run, config)
-
     tokenizer = T5Tokenizer.from_pretrained(args.pretrained_model)
-    # tokenizer = MBart50TokenizerFast.from_pretrained("facebook/mbart-large-50", src_lang="ko_KR", tgt_lang="ko_KR")
-
-
+    
     fin_dataset = FinanceDataset(args, tokenizer, accelerator)
     train_dataloader = fin_dataset.get_dataloaders('train')
     val_dataloader = fin_dataset.get_dataloaders('val')
@@ -115,19 +104,15 @@ def train(config, args):
     set_seed(args.seed)
 
     model = MT5ForConditionalGeneration.from_pretrained(args.pretrained_model)
-    # model = MBartForConditionalGeneration.from_pretrained(args.pretrained_model)
     model = model.to(accelerator.device)
 
-    # optimizer = AdamW(params=model.parameters(), lr=args.lr)
-
-    #####
+    # DS Optim + DS Scheduler
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
     if args.max_train_steps is None:
         args.max_train_steps = args.epochs * num_update_steps_per_epoch
     else:
         args.epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
-    # DS Optim + DS Scheduler
     no_decay = ["bias", "LayerNorm.weight"]
     optimizer_grouped_parameters = [
         {
@@ -162,12 +147,6 @@ def train(config, args):
         lr_scheduler = DummyScheduler(
             optimizer, total_num_steps=args.max_train_steps, warmup_num_steps=args.num_warmup_steps
         )
-
-    #####
-
-    # lr_scheduler = get_linear_schedule_with_warmup(
-    #     optimizer=optimizer, num_warmup_steps=100, num_training_steps=(len(train_dataloader)*args.epochs) // gradient_accumulation_steps
-    # )
 
     metrics = {
         # 'bertscore': evaluate.load('bertscore'),
@@ -293,40 +272,6 @@ def val_epoch(args, model, dataloader, metrics):
                 output_dir = os.path.join(args.output_dir, output_dir)
             accelerator.save_state(output_dir)
 
-
-
-        # New Code #
-        # Evaluates using the best checkpoint
-        perplexity, eval_loss = evaluate(args, model, eval_dataloader, accelerator, eval_dataset)
-        logger.info(f"Best model metrics: perplexity: {perplexity} eval_loss: {eval_loss}")
-        if perplexity != best_metric:
-            raise AssertionError(
-                f"Best metric {best_metric} does not match the metric {perplexity} of the loaded best model."
-            )
-
-        if args.output_dir is not None:
-            accelerator.wait_for_everyone()
-            unwrapped_model = accelerator.unwrap_model(model)
-
-            # New Code #
-            # Saves the whole/unpartitioned fp16 model when in ZeRO Stage-3 to the output directory if
-            # `stage3_gather_16bit_weights_on_model_save` is True in DeepSpeed Config file or
-            # `zero3_save_16bit_model` is True in DeepSpeed Plugin.
-            # For Zero Stages 1 and 2, models are saved as usual in the output directory.
-            # The model name saved is `pytorch_model.bin`
-            unwrapped_model.save_pretrained(
-                args.output_dir,
-                is_main_process=accelerator.is_main_process,
-                save_function=accelerator.save,
-                state_dict=accelerator.get_state_dict(model),
-            )
-            if accelerator.is_main_process:
-                tokenizer.save_pretrained(args.output_dir)
-                if args.push_to_hub:
-                    repo.push_to_hub(commit_message="End of training", auto_lfs_prune=True)
-
-            with open(os.path.join(args.output_dir, "all_results.json"), "w") as f:
-                json.dump({"perplexity": perplexity, "eval_loss": eval_loss.item()}, f)
 
 
 if __name__ == "__main__":
