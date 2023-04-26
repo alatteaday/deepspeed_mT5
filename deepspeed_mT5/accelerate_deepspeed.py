@@ -2,15 +2,7 @@ import argparse
 import os
 
 import torch
-# from datasets import load_dataset
-from torch.optim import AdamW
-# from torch.utils.data import DataLoader
-from transformers import (AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup,  
-                          MT5ForConditionalGeneration, T5Tokenizer,
-                          BartForConditionalGeneration, BartTokenizer, 
-                          MBartForConditionalGeneration, MBart50TokenizerFast,
-                          get_scheduler)
-
+from transformers import MT5ForConditionalGeneration, T5Tokenizer, get_scheduler
 from accelerate import Accelerator, DistributedType
 from accelerate.utils import set_seed, DummyOptim, DummyScheduler
 import evaluate 
@@ -53,10 +45,10 @@ def get_args():
     parser.add_argument('--max_train_steps', type=int, default=None)
     parser.add_argument('--weight_decay', type=float, default=0.01)
     parser.add_argument('--num_warmup_steps', type=int, default=0, help="Number of steps for the warmup in the lr scheduler.")
-    parser.add_argument('--lr', type=float, default=1e-5)
+    parser.add_argument('--lr', type=float, default=1e-7)
     parser.add_argument('--seed', type=int, default=42)
 
-    parser.add_argument('--pretrained_model', type=str, default='google/mt5-small', choices=['facebook/mbart-large-50', 'google/mt5-small'])
+    parser.add_argument('--pretrained_model', type=str, default='google/mt5-small', choices=['google/mt5-small'])
     parser.add_argument('--resume_from_ckpt', type=str, default=None)
     args = parser.parse_args()
 
